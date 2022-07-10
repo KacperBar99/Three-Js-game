@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>Gierka samolocik</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		<link type="text/css" rel="stylesheet" href="main.css">
+		
+		<style>
+			h1{text-align: center;}
+
+		</style>
+		
+
+		
+	</head>
+	<body>
+		
+			
+		
+		<div id="overlay">
+			Celem gry jest odnaleznie lotniska we mgle i wylądowanie na nim.<br>
+			W tym celu należy krążyć w pobliżu miasta.<br>
+			Lądowanie wymaga zmniejszenia prędkości.<br>
+			<br>
+			Sterowanie: <br>
+			W/S ruch w górę i dół <br>
+			A/D skręcanie samlotem <br>
+			Q/E precyzyjny skręt <br>
+			Shift/X regulacja prędkości <br>
+			Spacja Reset<br>
+			
+			<button id="startButton">Play</button>
+		</div>
+		<div id="overlay1">
+			<h1>Brawo samolot dotarł na lotnisko</h1>
+			
+		
+		</div>
+		
+
+		<script type="module">
+
+
+			
+
+			import * as THREE from '../build/three.module.js';
+			import Stats from './jsm/libs/stats.module.js';
+			import { FBXLoader } from './jsm/loaders/FBXLoader.js';
+
+			let camera, scene, renderer, stats;
+			let dirLight, shadowCameraHelper,lightHelper;
+			let Light;
+			let signalLight;
+			let signalLight_dimming;
+			
+
+			var SKYBOX = new THREE.Object3D();
+
+			const clock = new THREE.Clock();
+			let Speed=10;
+
+			
+			let coordinates =[];
+			let coordN=0;
+			let SCALE=[];
+
+			let postac = new THREE.Object3D();
+			let lotnisko = new THREE.Object3D();
+			let pas = new THREE.Object3D();
+		
+			
+			let mixer;
+			let mixer1;
+			let mathut=THREE.MathUtils;
+
+
+			let moveForward = false;
+			let moveBackward = false;
+			let moveLeft = false;
+			let moveRight = false;
+
+			let turnRight = false;
+			let turnleft =false;
+			let SpeedUp = false;
+			let SpeedDown =false;
+			let music;
+			let Reset=false;
+
+			document.getElementById("overlay1").style.display="none";
+			let should_animate=true;
+
+			//init();
+			//animate();
+
+			const startButton = document.getElementById( 'startButton' );
+			startButton.addEventListener( 'click', init);
+			
+			function postac_set()
+			{
+				postac.rotation.set(0,0,0);
+				postac.position.set(0,3000,0);
+			}
+
+			function init() {
+				const overlay = document.getElementById( 'overlay' ).style.display="none";
+				
+				
+				//basic
+
+
+				const container = document.createElement( 'div' );
+				document.body.appendChild( container );
+
+				camera = new THREE.PerspectiveCamera( 45, window.innerWidth / window.innerHeight, 1, 100000);
+				camera.position.set( 100, 200, 300 );
+
+				scene = new THREE.Scene();
+				scene.background = new THREE.Color( 0xa0a0a0 );
+				scene.fog = new THREE.Fog( 0xaaaaaaa, 0, 14000);
+
+				
+
+				//light
+				Light=new THREE.PointLight(0xffffff,1,1000,2);
+				Light.castShadow =true;
+				
+				
+				
+				scene.add(Light);
+
+				const hemiLight = new THREE.HemisphereLight( 0xffffff,0x000000,0.1);
+				hemiLight.position.set( 0, 2000, 0 );
+				scene.add( hemiLight );
+
+
+				dirLight = new THREE.DirectionalLight(0xffffff,0.1)
+				dirLight.position.set(5000,3000,5000);
+				dirLight.castShadow = true;
+			
+				scene.add(dirLight);
+
+
+				dirLight.shadow.mapSize.width = 2048;
+				dirLight.shadow.mapSize.height = 2048;
+				dirLight.shadow.camera.top = 10000;
+				dirLight.shadow.camera.bottom = -10000;
+				dirLight.shadow.camera.left = -10000;
+				dirLight.shadow.camera.right = 10000;
+				dirLight.shadow.camera.near = 1;   //zasieg swiatla (od near do far)
+				dirLight.shadow.camera.far = 32000;
+
+				signalLight= new THREE.PointLight(0xff0000,1,5000);
+				
+				scene.add(signalLight);
+				
+				
+				
+
+				
+
+				//muzyka
+				
+				const listener = new THREE.AudioListener();
+				camera.add( listener );
+				 music = new THREE.Audio(listener);
+
+				const audioloader = new THREE.AudioLoader();
+				audioloader.load('sounds/fly.mp3',function(buffer)
+				{
+					music.setBuffer(buffer);
+				
+					music.setLoop(true);
+					music.setVolume(.1);
+					music.play();
+				} );
+				
+				
+				
+
+				//controls and others
+				
+				
+
+			
+				
+				const onKeyDown = function(event)
+				{
+					switch(event.code)
+					{
+						case 'ArrowUp':
+						case 'KeyW':
+							moveForward=true;
+							break;
+
+						case 'ArrowLeft':
+						case 'KeyA':
+							moveLeft=true;
+							break;
+
+						case 'ArrowDown':
+						case 'KeyS':
+							moveBackward=true;
+							break;
+
+						case 'ArrowRight':
+						case 'KeyD':
+							moveRight=true;
+							break;
+						
+						case 'KeyQ':
+							turnleft=true;
+							break;
+							
+						case 'KeyE':
+							turnRight=true;
+							break;
+						
+						case 'ShiftLeft':
+							SpeedUp=true;
+							break;
+
+						case 'KeyX':
+							SpeedDown=true;
+							break;
+						case 'Space':
+							Reset=true;
+							break;
+
+					}
+				};
+				const onKeyUp =function(event)
+				{
+
+					switch(event.code)
+					{
+						case 'ArrowUp':
+						case 'KeyW':
+							moveForward = false;
+							break;
+
+						case 'ArrowLeft':
+						case 'KeyA':
+							moveLeft = false;
+							break;
+
+						case 'ArrowDown':
+						case 'KeyS':
+							moveBackward = false;
+							break;
+
+						case 'ArrowRight':
+						case 'KeyD':
+							moveRight = false;
+							break;
+
+
+						case 'KeyQ':
+							turnleft=false;
+							break;
+							
+						case 'KeyE':
+							turnRight=false;
+							break;
+						
+						case 'ShiftLeft':
+							SpeedUp=false;
+							break;
+
+						case 'KeyX':
+							SpeedDown=false;
+							break;
+						
+							case 'Space':
+							Reset=false;
+							break;
+
+
+					}
+				};
+				document.addEventListener('keydown',onKeyDown);
+				document.addEventListener('keyup',onKeyUp);
+				
+
+			
+
+				// ground
+				
+				var texture = new THREE.TextureLoader().load('img/grass.jpg');
+				texture.wrapS=THREE.RepeatWrapping;
+				texture.wrapT=THREE.RepeatWrapping;
+				texture.repeat.set(256,256);
+				texture.anisotropy=16;
+				
+				var planeMaterial = new THREE.MeshStandardMaterial({map:texture});
+				var planeGeometry = new THREE.PlaneGeometry(100000,100000);
+				
+				
+				
+				var plane = new THREE.Mesh(planeGeometry,planeMaterial);
+				plane.rotation.x=-Math.PI/2;
+				plane.position.y=0;
+				plane.position.z=0*(Math.pow(2,15)+1024);
+				plane.castShadow=false;
+				plane.receiveShadow=true;
+				scene.add(plane);
+				
+				
+					
+				
+
+				//skybox
+
+			const textures = ['img/skybox/north.jpg',
+							'img/skybox/south.jpg',
+							'img/skybox/top.jpg',
+							'img/skybox/bottom.jpg',
+							'img/skybox/west.jpg',
+							'img/skybox/east.jpg'];
+	
+			
+			var materials = [];
+			
+			for(var i=0;i<textures.length;i++) {
+				const texture_skybox = new THREE.TextureLoader().load(textures[i]);
+				
+				texture_skybox.anisotropy=16;
+				materials.push(	new THREE.MeshStandardMaterial({map: texture_skybox, side: THREE.BackSide}));  //Mateial jakim pokryjemy sciany 
+			}																						//sciany beda teksturowane od srodka
+		
+			var geometry = new THREE.BoxGeometry(20000,20000,20000); // cube (skybox)
+			
+			var skyBox = new THREE.Mesh( geometry,  materials ); //Utworzenie siatki trojkatow tworzacej skybox
+			
+			skyBox.position.y = 0;
+			
+			SKYBOX.add( skyBox );  //Dodanie skyboxa do sceny
+			scene.add(SKYBOX);
+
+				
+
+			
+				// models
+				const loader = new FBXLoader();
+				loader.load( 'models/fbx/projekt.fbx', function ( object ) {
+
+					mixer = new THREE.AnimationMixer( object );
+
+					const action = mixer.clipAction( object.animations[ 0] );
+						action.play();
+
+					object.traverse( function ( child ) {
+
+						if ( child.isMesh ) {
+
+							child.castShadow =false;
+							child.receiveShadow = false;
+
+						}
+
+					} );
+					postac.scale.set(0.2,0.2,0.2);
+					postac.add(object);
+					scene.add(postac);
+					postac_set();
+				} );
+				loader.load('models/fbx/lotnisko.fbx',function(object){
+					mixer1 = new THREE.AnimationMixer(object);
+					const action=mixer1.clipAction(object.animations[0]);
+					action.play();
+					object.traverse(function(child){
+
+						if(child.isMesh){
+							child.castShadow=true;
+							child.receiveShadow=true;
+						}
+
+					});
+					lotnisko.scale.set(0.2,.2,.2);
+					lotnisko.add(object);
+					scene.add(lotnisko);
+					var tmp = mathut.randInt(1,4);
+					switch(tmp)
+					{
+						case 1:
+							
+							lotnisko.position.set(20000,-60,20000);
+							break;
+
+						case 2: 
+							
+							lotnisko.position.set(-10000,-60,-10000);
+							break;
+
+						case 3:
+						
+							lotnisko.position.set(-10000,-60,10000);
+							break;
+
+						case 4:
+							
+							lotnisko.position.set(10000,-60,-10000);
+							break;
+					}
+					
+					signalLight.position.set(lotnisko.position.x,1200,lotnisko.position.z);
+				});
+				loader.load('models/fbx/pas.fbx',function(object){
+					object.traverse(function(child){
+						if(child.isMesh)
+						{
+							child.castShadow=true;
+							child.receiveShadow=true;
+						}
+					});
+					pas.scale.set(1,0.5,1);
+					pas.add(object);
+					scene.add(pas);
+					if(lotnisko.position.x>0)
+					pas.position.set(lotnisko.position.x+5000,0,lotnisko.position.z+1000);
+					else pas.position.set(lotnisko.position.x-5000,0,lotnisko.position.z+1000);
+
+					
+
+
+				});
+				
+				
+
+
+				
+
+				//city
+				
+				var city_b=new THREE.Object3D();
+				var city = new THREE.Object3D();
+				
+				var texture_2=new THREE.TextureLoader().load('img/tekstura1.jpg');
+				texture_2.wrapS=THREE.RepeatWrapping;
+				texture_2.wrapT=THREE.RepeatWrapping;
+				texture_2.repeat.set(1,1);
+				texture_2.anisotropy=16;
+
+				var texture_2_b = new THREE.TextureLoader().load('img/tekstura2.jpg');
+				texture_2_b.wrapS=THREE.RepeatWrapping;
+				texture_2_b.wrapT=THREE.RepeatWrapping;
+				texture_2_b.repeat.set(1,1);
+				texture_2_b.anisotropy=16;
+				
+				var singlematerial_b = new THREE.MeshStandardMaterial({map:texture_2_b});
+				var singlegeometry_b = new THREE.BoxGeometry(64,256,64);
+				var singlematerial = new THREE.MeshStandardMaterial({map:texture_2});
+				var singlegeometry = new THREE.BoxGeometry(64,256,64);
+
+
+				function single_building_b(posx,posy,posz)
+				{
+					var one_building_b=new THREE.Mesh(singlegeometry_b,singlematerial_b);
+					one_building_b.position.x+=posx;
+					one_building_b.position.y+=posy;
+					one_building_b.position.z+=posz;
+					one_building_b.receiveShadow=true;
+					one_building_b.castShadow=true;
+					city_b.add(one_building_b);
+					
+				}
+			
+
+				function single_building(posx, posy, posz){		
+					var	one_building = new THREE.Mesh( singlegeometry,singlematerial);
+					one_building.position.x += posx;
+					one_building.position.y += posy;
+					one_building.position.z += posz;
+					one_building.receiveShadow=true;
+					one_building.castShadow=true;
+					city.add( one_building );	
+					
+				}
+				
+					single_building_b(0,-512+256-64,0);
+					single_building(0,-512+256-64,0);
+				
+
+				
+
+				var texture3 = new THREE.TextureLoader().load('img/baza1.jpg');
+				texture3.wrapS=THREE.RepeatWrapping;
+				texture3.wrapT=THREE.RepeatWrapping;
+				texture3.repeat.set(1,1);
+				texture3.anisotropy=16;
+				var texture3_b = new THREE.TextureLoader().load('img/baza2.jpg');
+				texture3_b.wrapS=THREE.RepeatWrapping;
+				texture3_b.wrapT=THREE.RepeatWrapping;
+				texture3_b.repeat.set(1,1);
+				texture3_b.anisotropy=16;
+
+				var base_material_b=new THREE.MeshStandardMaterial({map:texture3_b});
+				var base_geometry_b=new THREE.BoxGeometry(64,128,64);
+
+				var base_material=new THREE.MeshStandardMaterial({map:texture3});
+				var base_geometry=new THREE.BoxGeometry(64,128,64);
+
+				function dol_budynku_b(posx,posy,posz)
+				{
+					var base_b=new THREE.Mesh(base_geometry_b,base_material_b);
+					base_b.position.x+=posx;
+					base_b.position.y+=posy;
+					base_b.position.z+=posz;
+					base_b.receiveShadow=true;
+					base_b.castShadow=true;
+					city_b.add(base_b);
+					
+				}
+				function dol_budynku(posx,posy,posz)
+				{
+					var base=new THREE.Mesh(base_geometry_b,base_material_b);
+					base.position.x+=posx;
+					base.position.y+=posy;
+					base.position.z+=posz;
+					base.receiveShadow=true;
+					base.castShadow=true;
+					city.add(base);
+					
+				}
+				
+					dol_budynku_b(0,-512+0,0);
+					dol_budynku(0,-512+0,0);
+				
+				
+
+
+				var texture4 = new THREE.TextureLoader().load('img/szczyt1.jpg');
+				texture4.wrapS=THREE.RepeatWrapping;
+				texture4.wrapT=THREE.RepeatWrapping;
+				texture4.repeat.set(1,1);
+				texture4.anisotropy=16;
+
+				var texture4_b=new THREE.TextureLoader().load('img/szczyt2.jpg')
+				texture4_b.wrapS=THREE.RepeatWrapping;
+				texture4_b.wrapT=THREE.RepeatWrapping;
+				texture4_b.repeat.set(1,1);
+				texture4_b.anisotropy=16;
+
+				var top_material_b=new THREE.MeshStandardMaterial({map:texture4_b});
+				var top_geometry_b=new THREE.BoxGeometry(64,32,64);
+
+				var top_material=new THREE.MeshStandardMaterial({map:texture4});
+				var top_geometry=new THREE.BoxGeometry(64,32,64);
+
+
+				function szczyt_budynku(posx,posy,posz)
+				{
+					var top=new THREE.Mesh(top_geometry,top_material);
+					top.position.x+=posx;
+					top.position.y+=posy;
+					top.position.z+=posz;
+					top.receiveShadow=true;
+					top.castShadow=true;
+					city.add(top);
+					
+				}
+				function szczyt_budynku_b(posx,posy,posz)
+				{
+					var top_b=new THREE.Mesh(top_geometry_b,top_material_b);
+					top_b.position.x+=posx;
+					top_b.position.y+=posy;
+					top_b.position.z+=posz;
+					top_b.receiveShadow=true;
+					top_b.castShadow=true;
+					city_b.add(top_b);
+					
+				}
+				
+					szczyt_budynku(0,-512+256+128-64+16,0);
+					szczyt_budynku_b(0,-512+256+128-64+16,0);
+				
+
+				city.position.y+=512+64;
+				city_b.position.y+=512+64;
+				
+				
+				var CITY=new THREE.Object3D();
+
+				//generowanie układu miasta
+				for(var i=1;i<=20;i++)
+				{
+					for(var j=1;j<=20;j++)
+					{
+						var city_tmp=new THREE.Object3D();
+						if((i+j)%2==0)city_tmp.add(city.clone());
+						else city_tmp.add(city_b.clone());
+						
+						
+						city_tmp.position.x=i*500;
+						city_tmp.position.z=j*500;
+						
+						
+						var n1=2
+						var n2=mathut.randInt(1,3);
+						var n3=2;
+						SCALE.push(new THREE.Vector3(n1,n2,n3));
+						
+					
+						coordinates.push(new THREE.Vector3(city_tmp.position.x,city_tmp.position.y,city_tmp.position.z));
+						coordN+=1;
+
+						city_tmp.scale.set(n1,n2,n3);
+						
+						CITY.add(city_tmp.clone());
+					}
+				}
+
+
+
+				
+
+
+
+				scene.add(CITY);
+				
+
+				
+
+				//last settings
+
+				camera.position.set(postac.position.x-1000,postac.position.y+1000,postac.position.z);
+
+				renderer = new THREE.WebGLRenderer( { antialias: true } );
+				renderer.setPixelRatio( window.devicePixelRatio );
+				renderer.setSize( window.innerWidth, window.innerHeight );
+				renderer.shadowMap.enabled = true;
+				container.appendChild( renderer.domElement );
+
+				
+
+				window.addEventListener( 'resize', onWindowResize );
+				
+				// stats
+				stats = new Stats();
+				container.appendChild( stats.dom );
+				animate();
+
+				
+
+			}
+
+			function onWindowResize() {
+
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
+
+				renderer.setSize( window.innerWidth, window.innerHeight );
+
+			}
+
+			//
+
+			function animate() {
+
+				if(should_animate===false)return;
+			
+
+				requestAnimationFrame( animate );
+				
+				
+				//console.log(postac.position);
+				//console.log(signalLight.intensity);
+				
+
+
+				const delta = clock.getDelta();
+
+
+				if ( mixer ) mixer.update( delta );
+				if(mixer1)mixer1.update(delta);
+				
+				
+				
+				if(signalLight_dimming===true)
+				{
+					if(signalLight.intensity>0)signalLight.intensity-=0.01;
+					else signalLight_dimming=false;
+				}
+				else
+				{
+					if(signalLight.intensity<=1)signalLight.intensity+=0.01;
+					else signalLight_dimming=true;
+				}
+			
+
+				
+				
+				
+				if(Reset===true)
+				{
+					postac_set();
+				}
+
+
+				if(turnleft===true)
+				{
+					postac.rotation.y+=0.005*delta*100;
+				
+				}
+				else if (turnRight===true)
+				{
+					postac.rotation.y-=0.005*delta*100;
+					
+				}
+				if(moveForward===true)
+				{
+					postac.rotation.z-=0.01*delta*100;
+					
+				}
+				else if(moveBackward===true)
+				{
+					postac.rotation.z+=0.01*delta*100;
+				}
+				else if(moveLeft===true)
+				{
+					if(postac.rotation.x>-0.15)
+					postac.rotation.x-=0.01*delta*100;
+					postac.rotation.y+=0.01*delta*100;
+					if(postac.rotation.z<0.2)
+					postac.rotation.z+=0.01*delta*10;
+				}
+				else if (moveRight===true)
+				{	
+					if(postac.rotation.x<0.15)
+					postac.rotation.x+=0.01*delta*100;
+					postac.rotation.y-=0.01*delta*100;
+					if(postac.rotation.z<0.2)
+					postac.rotation.z+=0.01*delta*100;
+				}
+				else if (SpeedUp===true)
+				{
+					if(Speed<=20)Speed+=0.1*delta*50;
+				}
+				else if(SpeedDown===true)
+				{
+					
+					if(postac.position.y>50)
+					{
+						if(Speed>5)Speed-=0.2*delta*50;
+					}
+					else
+					{
+						if(Speed>1)Speed-=0.1*delta*50;
+					}
+					
+					
+				}
+				
+				
+				
+
+				// ruch samolotu
+				postac.position.x+=Speed*Math.cos(postac.rotation.y)*Math.cos(postac.rotation.z)*delta*100;
+				postac.position.z+=-Speed*Math.sin(postac.rotation.y)*delta*100;
+				postac.position.y+=Speed*Math.sin(postac.rotation.z)*delta*100;
+				
+				if(Speed<9)postac.position.y-=0.1*delta*100;
+				if(postac.rotation.x>=2*Math.PI)postac.rotation.x-=2*Math.PI;
+				if(postac.rotation.y>=2*Math.PI)postac.rotation.y-=2*Math.PI;
+				if(postac.rotation.z>=2*Math.PI)postac.rotation.z-=2*Math.PI;
+
+				//kamera
+				var dir = new THREE.Vector3(postac.position.x,postac.position.y,postac.position.z);
+				dir.sub(camera.position).normalize();
+				//console.log(dir);
+				camera.position.set(postac.position.x-dir.x*250,postac.position.y,postac.position.z-dir.z*250);
+
+				if(Math.abs(postac.position.x)>=40000 || Math.abs(postac.position.z)>=40000)
+				{
+					postac_set();
+				}
+				//ladowanie
+				if(Math.abs(postac.position.x-pas.position.x)<5500)
+				{
+					if(Math.abs(postac.position.z-pas.position.z)<500)
+					{
+						if(Math.abs(postac.position.y-pas.position.y)<20)
+						{
+							
+							if(Speed<2)
+							{
+								music.stop();
+								const audioloader = new THREE.AudioLoader();
+								audioloader.load('sounds/Win.mp3',function(buffer)
+								{
+									music.setBuffer(buffer);
+									music.setLoop(true);
+									music.setVolume(1);
+									music.play();
+								} );
+								should_animate=false;
+								document.getElementById("overlay1").style.display="block";
+									
+							}
+						}
+					}
+					
+				}
+				//kolizja z gruntem
+				if(postac.position.y<0)
+				{
+					postac_set();
+					
+				}
+				//kolizje z budynkami 
+				for(var i=0;i<coordN;i++)
+				{
+					if(Math.abs(postac.position.x-coordinates[i].x)<32*SCALE[i].x)
+					{
+						if(Math.abs(postac.position.z-coordinates[i].z)<32*SCALE[i].z)
+						{
+							
+							if(Math.abs(postac.position.y-coordinates[i].y)<416*SCALE[i].y)
+							{
+								postac_set();
+								
+							}
+							
+						}
+					}
+				}
+				//radar kolizja
+				if(Math.abs(postac.position.x-lotnisko.position.x)<150)
+				{
+					if(Math.abs(postac.position.z-lotnisko.position.z)<150)
+					{
+						if(postac.position.y<1200)
+						{
+							postac_set();
+						}
+					}
+				}
+				
+				//równanie prędkości
+				if(SpeedUp===false && SpeedDown===false)
+				{
+					if(Speed>10)Speed-=0.1*delta*50;
+					else if(Speed<10)Speed+=0.1*delta*50;
+				}
+				
+				//wyrównywanie samolotu
+				if(moveRight===false && moveLeft===false)
+				{
+					if(Math.abs(postac.rotation.x)<=0.05)postac.rotation.x=0;
+					if(postac.rotation.x>0)postac.rotation.x-=0.01;
+					else if(postac.rotation.x<0)postac.rotation.x+=0.01;
+					
+
+					if(moveForward===false && moveBackward===false)
+					{
+						if(Math.abs(postac.rotation.z)<=0.05)postac.rotation.z=0;
+						if(postac.rotation.z>0)postac.rotation.z-=0.01;
+						else if(postac.rotation.z<0)postac.rotation.z+=0.01;
+					}
+					
+					
+				}
+
+				Light.position.set(postac.position.x,postac.position.y+100,postac.position.z);
+
+
+
+				
+				SKYBOX.position.set(postac.position.x,postac.position.y,postac.position.z);
+				camera.lookAt(postac.position);
+				postac.updateMatrix();
+				
+				
+				renderer.render( scene, camera );
+				stats.update();
+
+			}
+
+		</script>
+
+	</body>
+</html>
